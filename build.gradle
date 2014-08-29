@@ -1,3 +1,5 @@
+// vim: set filetype=groovy :
+
 buildscript {
     repositories {
         mavenCentral()
@@ -18,4 +20,173 @@ android {
             proguardFile getDefaultProguardFile('proguard-android.txt')
         }
     }
+}
+
+
+def ceylonModuleName = "lahwran.androidlocker"
+def ceylonModuleVersion = "1"  // TODO: this should be autodetected :(
+
+
+android.applicationVariants.all {
+    def ceylonExecutable = "/Users/lahwran/ceylonstuff/ceylon-dist/dist/bin/ceylon"
+    def ceylonVersion = "1.1.0"
+
+    def pfx = "ceylon-${name}-"
+    File ceylonDir = new File(project.buildDir, "ceylon/${name}/").canonicalFile
+
+    File ceylonSrc = new File(ceylonDir, "src")
+    File ceylonFinalRepo = new File(ceylonDir, "finalrepo")
+    File ceylonGradleRepo = new File(ceylonDir, "gradledepsrepo")
+    File ceylonOutRepo = new File(ceylonDir, "outrepo")
+    File ceylonDepDir = new File(ceylonDir, "extractedjars")
+
+    def destinationDirectory = javaCompile.destinationDir
+    def javaCompileDeps = javaCompile.dependsOn.clone()
+    def compileRan = false
+
+    File blobjar = new File(ceylonDir, "blob.jar")
+
+    task "${pfx}prepare"(dependsOn: javaCompileDeps) << {
+        ceylonDir.mkdirs()
+    }
+    task "${pfx}extractdeps"(dependsOn: "${pfx}prepare") {
+        def classpath = javaCompile.classpath
+        def runtimeJars = plugins.findPlugin(com.android.build.gradle.AppPlugin).runtimeJars
+        classpath = files(runtimeJars) + classpath
+
+        inputs.files classpath
+        outputs.files fileTree(ceylonDepDir)
+
+        doFirst {
+            blobjar.delete()
+            def blacklist = new HashSet()
+            file("blacklist").eachLine { line ->
+                blacklist.add(line.trim())
+            }
+            for (thing in classpath) {
+                println("copying ${thing}...")
+                copy {
+                    from(zipTree(thing))
+                    into(ceylonDepDir.canonicalFile)
+                    exclude { item ->
+                        return blacklist.contains(item.path)
+                    }
+                }
+            }
+        }
+    }
+    task "${pfx}blobjar"(type: Jar, dependsOn: "${pfx}extractdeps") {
+        from fileTree(ceylonDepDir.canonicalFile)
+        outputs.upToDateWhen {
+            return blobjar.exists()
+        }
+        archiveName = "blob.jar"
+        destinationDir = ceylonDir.canonicalFile
+        entryCompression = ZipEntryCompression.STORED
+        doLast {
+            ["rm", "-rf", ceylonGradleRepo.canonicalPath].execute().waitFor()
+        }
+    }
+    task "${pfx}importdeps"(type: Exec, dependsOn: "${pfx}blobjar") {
+        outputs.upToDateWhen {
+            return ceylonGradleRepo.exists()
+        }
+
+        commandLine ceylonExecutable, "import-jar",\
+                    "--force",\
+                    "--out", ceylonGradleRepo.canonicalPath,\
+                    "gradleCeylonBuild.gradleDependencies/combinedJar",\
+                    blobjar.canonicalPath
+        doFirst {
+            ceylonGradleRepo.mkdirs()
+        }
+    }
+    task "${pfx}copysource"(dependsOn: "${pfx}prepare") {
+        def source = javaCompile.source + fileTree('src/main/java').include('**/*.ceylon')
+        inputs.files source
+        outputs.files fileTree(ceylonSrc)
+        doFirst {
+            ["rm", "-rf", ceylonSrc.canonicalPath].execute().waitFor()
+            ceylonSrc.mkdirs()
+            copy {
+                from(source)
+                into(ceylonSrc)
+                include '**/R.java'
+                filter { line ->
+                    line = line.replaceAll(~/(    public static final class )([^ ]+)/,
+                                            '    public static final _$2 $2 = new _$2();\n$1_$2')
+                }
+            }
+            copy {
+                from(source)
+                into(ceylonSrc)
+                exclude '**/R.java'
+            }
+        }
+    }
+    task "${pfx}compile"(type: Exec, dependsOn: ["${pfx}importdeps", "${pfx}copysource"]) {
+        inputs.files fileTree(ceylonSrc)
+        outputs.dir ceylonOutRepo
+
+        commandLine ceylonExecutable, \
+            "compile",\
+            "--out", ceylonOutRepo.canonicalPath,\
+            "--rep", ceylonGradleRepo.canonicalPath,\
+            "--source", ceylonSrc.canonicalPath,\
+            ceylonModuleName
+        doFirst {
+            compileRan = true
+            ["rm", "-rf", ceylonOutRepo.canonicalPath].execute().waitFor()
+            ceylonOutRepo.mkdirs()
+        }
+    }
+    task "${pfx}clear-final-repo"(dependsOn: "${pfx}compile") {
+        outputs.upToDateWhen { return !compileRan }
+
+        doFirst {
+            ["rm", "-rf", ceylonFinalRepo.canonicalPath].execute().waitFor()
+        }
+    }
+    task "${pfx}appmodule"(type: Exec, dependsOn: "${pfx}clear-final-repo") {
+        outputs.upToDateWhen { return !compileRan }
+
+        commandLine ceylonExecutable, \
+            "copy",\
+            "--out", ceylonFinalRepo.canonicalPath,\
+            "--rep", ceylonOutRepo.canonicalPath,\
+            "--rep", ceylonGradleRepo.canonicalPath,\
+            "--jvm",\
+            "--recursive",\
+            "${ceylonModuleName}/${ceylonModuleVersion}"
+    }
+    task "${pfx}languagemodule"(type: Exec, dependsOn: "${pfx}clear-final-repo") {
+        outputs.upToDateWhen { return !compileRan }
+
+        commandLine ceylonExecutable, \
+            "copy",\
+            "--out", ceylonFinalRepo.canonicalPath,\
+            "--jvm",\
+            "ceylon.language/${ceylonVersion}"
+    }
+
+    task "${pfx}build"(dependsOn: ["${pfx}languagemodule", "${pfx}appmodule"]) {
+        outputs.upToDateWhen { return !compileRan }
+        doFirst {
+            fileTree(ceylonFinalRepo.canonicalFile).include("**/*.car").include("**/*.jar").visit { x ->
+                if (!x.name.endsWith(".car") && !x.name.endsWith(".jar")) {
+                    return
+                }
+                // todo: make sure we don't extract gradleCeylonBuild...
+                print "copying to output: "
+                println x.name
+                copy {
+                    from(zipTree(x.file.canonicalFile))
+                    into(destinationDirectory.canonicalFile)
+                }
+            }
+        }
+    }
+
+    javaCompile.dependsOn("${pfx}build")
+    javaCompile.enabled = false
 }
