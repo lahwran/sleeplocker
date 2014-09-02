@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">MainActivity</string>
+    <string name="app_name">Sleep Locker</string>
+    <string name="derp1">Device admin thing (string 1)</string>
+    <string name="derp2">Device admin thing (string 2)</string>
 </resources>
