@@ -3,6 +3,7 @@ import android.os { Bundle }
 import android.content { Intent, Context, ComponentName }
 import android.app.admin { DevicePolicyManager, DeviceAdminReceiver }
 import android.widget { Toast }
+import android.view { View }
 
 import java.lang { JavaString = String }
 
@@ -14,7 +15,7 @@ shared class MainActivity() extends Activity() {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
 
-        
+
         value intent = Intent(DevicePolicyManager.\iACTION_ADD_DEVICE_ADMIN);
         intent.setFlags(Intent.\iFLAG_ACTIVITY_NEW_TASK);
         intent.putExtra(DevicePolicyManager.\iEXTRA_DEVICE_ADMIN, mAdminName);
@@ -22,7 +23,11 @@ shared class MainActivity() extends Activity() {
         startActivity(intent);
     }
 
-    //shared void do
+    shared void doLock(View view) {
+        assert(is DevicePolicyManager
+                manager = getSystemService(Context.\iDEVICE_POLICY_SERVICE));
+        manager.lockNow();
+    }
 
 }
 
