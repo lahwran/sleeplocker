@@ -20,6 +20,13 @@ android {
             proguardFile getDefaultProguardFile('proguard-android.txt')
         }
     }
+
+    defaultConfig {
+        minSdkVersion 19
+        targetSdkVersion 19
+        versionCode 1
+        versionName "1.0"
+    }
 }
 
 
