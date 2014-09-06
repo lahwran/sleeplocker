@@ -1,14 +1,33 @@
-import android.app { Activity }
+import android.app { Activity, AlarmManager, PendingIntent, ActivityManager }
 import android.os { Bundle }
-import android.content { Intent, Context, ComponentName }
+import android.content { Intent, Context, ComponentName, BroadcastReceiver }
 import android.app.admin { DevicePolicyManager, DeviceAdminReceiver }
 import android.widget { Toast }
 import android.view { View }
+import android.util { Log }
 
 import java.lang { JavaString = String }
 
 
-ComponentName mAdminName = ComponentName("lahwran.androidlocker", "ReceiverThing");
+String logtag = "locker.ceylon";
+ComponentName mAdminName = ComponentName("lahwran.androidlocker", "AdminReceiver");
+
+
+AlarmManager alarmManager(Context c) {
+    assert(is AlarmManager
+            service = c.getSystemService(Context.\iALARM_SERVICE));
+    return service;
+}
+DevicePolicyManager devicePolicyService(Context c) {
+    assert(is DevicePolicyManager
+            service = c.getSystemService(Context.\iDEVICE_POLICY_SERVICE));
+    return service;
+}
+ActivityManager activityManager(Context c) {
+    assert(is ActivityManager
+            service = c.getSystemService(Context.\iACTIVITY_SERVICE));
+    return service;
+}
 
 shared class MainActivity() extends Activity() {
     shared actual void onCreate(Bundle? savedInstanceState) {
@@ -24,14 +43,35 @@ shared class MainActivity() extends Activity() {
     }
 
     shared void doLock(View view) {
-        assert(is DevicePolicyManager
-                manager = getSystemService(Context.\iDEVICE_POLICY_SERVICE));
-        manager.lockNow();
+        devicePolicyService(this).lockNow();
+    }
+
+    shared void enableAlarm(View view) {
+        value intent = Intent(this, CeylonHacks.alarmclass);
+        value pendingintent = PendingIntent.getBroadcast(this, 0,
+                intent, PendingIntent.\iFLAG_UPDATE_CURRENT);
+        alarmManager(this).setRepeating(AlarmManager.\iELAPSED_REALTIME_WAKEUP,
+                1000, 1000, pendingintent);
+    }
+
+    shared void disableAlarm(View view) {
+        value intent = Intent(this, CeylonHacks.alarmclass);
+        value pendingintent = PendingIntent.getBroadcast(this, 0,
+                intent, PendingIntent.\iFLAG_UPDATE_CURRENT);
+        alarmManager(this).cancel(pendingintent);
     }
 
 }
 
-shared class ReceiverThing() extends DeviceAdminReceiver() {
+shared class AlarmReceiver() extends BroadcastReceiver() {
+    shared actual void onReceive(Context context, Intent intent) {
+        value taskInfo = activityManager(context).getRunningTasks(1); 
+        Log.d(logtag, "CURRENT Activity ::"
+                            + taskInfo.get(0).topActivity.className);
+    }
+}
+
+shared class AdminReceiver() extends DeviceAdminReceiver() {
     shared actual void onEnabled(Context context, Intent intent) {
         Toast.makeText(context, JavaString("enabled 1"), Toast.\iLENGTH_SHORT).show();
     }

@@ -3,12 +3,22 @@
     android:orientation="vertical"
     android:layout_width="fill_parent"
     android:layout_height="fill_parent"
-    android:onClick="doLock"
-    >
-<TextView
-    android:layout_width="fill_parent"
-    android:layout_height="wrap_content"
-    android:text="Hello World, MainActivity"
-    />
+>
+<Button android:layout_height="wrap_content"
+        android:layout_width="wrap_content"
+        android:text="lock now"
+        android:onClick="doLock"
+/>
+<Button android:layout_height="wrap_content"
+        android:layout_width="wrap_content"
+        android:onClick="enableAlarm"
+        android:text="enable log thing"
+/>
+<Button android:layout_height="wrap_content"
+        android:layout_width="wrap_content"
+        android:onClick="disableAlarm"
+        android:text="disable log thing"
+/>
+        
 </LinearLayout>
 
