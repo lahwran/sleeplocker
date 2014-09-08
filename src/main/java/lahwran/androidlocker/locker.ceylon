@@ -1,6 +1,7 @@
 import android.app { Activity, AlarmManager, PendingIntent, ActivityManager }
-import android.os { Bundle }
+import android.os { Bundle, SystemClock }
 import android.content { Intent, Context, ComponentName, BroadcastReceiver }
+import android.content.pm { PackageManager }
 import android.app.admin { DevicePolicyManager, DeviceAdminReceiver }
 import android.widget { Toast }
 import android.view { View }
@@ -29,17 +30,28 @@ ActivityManager activityManager(Context c) {
     return service;
 }
 
+Intent getLauncherIntent(Context c) {
+    value activities = c.packageManager.queryIntentActivities(
+            Intent(Intent.\iACTION_MAIN)
+                .addCategory(Intent.\iCATEGORY_HOME),
+            PackageManager.\iMATCH_DEFAULT_ONLY);
+    variable Intent? result = null;
+    for(index in 0:activities.size()) {
+        value resolveInfo = activities.get(index);
+        Log.d(logtag, resolveInfo.activityInfo.packageName);
+        result = c.packageManager.getLaunchIntentForPackage(resolveInfo.activityInfo.packageName);
+    }
+    Intent? intent = result;
+    assert(exists intent);
+    return intent;
+}
+
 shared class MainActivity() extends Activity() {
     shared actual void onCreate(Bundle? savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
 
-
-        value intent = Intent(DevicePolicyManager.\iACTION_ADD_DEVICE_ADMIN);
-        intent.setFlags(Intent.\iFLAG_ACTIVITY_NEW_TASK);
-        intent.putExtra(DevicePolicyManager.\iEXTRA_DEVICE_ADMIN, mAdminName);
-        intent.putExtra(DevicePolicyManager.\iEXTRA_ADD_EXPLANATION,  "some text.");
-        startActivity(intent);
+        Log.d(logtag, "``getLauncherIntent(this)``");
     }
 
     shared void doLock(View view) {
@@ -47,27 +59,47 @@ shared class MainActivity() extends Activity() {
     }
 
     shared void enableAlarm(View view) {
-        value intent = Intent(this, CeylonHacks.alarmclass);
-        value pendingintent = PendingIntent.getBroadcast(this, 0,
-                intent, PendingIntent.\iFLAG_UPDATE_CURRENT);
-        alarmManager(this).setRepeating(AlarmManager.\iELAPSED_REALTIME_WAKEUP,
-                1000, 1000, pendingintent);
+        setAlarm(this);
     }
 
     shared void disableAlarm(View view) {
-        value intent = Intent(this, CeylonHacks.alarmclass);
-        value pendingintent = PendingIntent.getBroadcast(this, 0,
-                intent, PendingIntent.\iFLAG_UPDATE_CURRENT);
-        alarmManager(this).cancel(pendingintent);
+        removeAlarm(this);
     }
 
 }
 
+Integer timedelta(Integer delta) {
+    return SystemClock.elapsedRealtime() + delta;
+}
+
+void setAlarm(Context c) {
+    value intent = Intent(c, CeylonHacks.alarmclass);
+    value pendingintent = PendingIntent.getBroadcast(c, 0,
+            intent, PendingIntent.\iFLAG_UPDATE_CURRENT);
+    alarmManager(c).setExact(AlarmManager.\iELAPSED_REALTIME_WAKEUP,
+            timedelta(1000), pendingintent);
+}
+
+void removeAlarm(Context c) {
+    value intent = Intent(c, CeylonHacks.alarmclass);
+    value pendingintent = PendingIntent.getBroadcast(c, 0,
+            intent, PendingIntent.\iFLAG_UPDATE_CURRENT);
+    alarmManager(c).cancel(pendingintent);
+}
+
 shared class AlarmReceiver() extends BroadcastReceiver() {
-    shared actual void onReceive(Context context, Intent intent) {
+    shared actual void onReceive(Context context, Intent alarmintent) {
         value taskInfo = activityManager(context).getRunningTasks(1); 
-        Log.d(logtag, "CURRENT Activity ::"
-                            + taskInfo.get(0).topActivity.className);
+        value task = taskInfo.get(0);
+        Log.d(logtag, "CURRENT Activity :: ``task.topActivity.flattenToString() else "null"`` - 
+                       ``task.description else "null"`` - ``task.baseActivity.flattenToString() else "null"``");
+        if (task.topActivity.flattenToString() == "com.android.systemui/com.android.systemui.recent.RecentsActivity") {
+            value intent = getLauncherIntent(context);
+            intent.addFlags(Intent.\iFLAG_ACTIVITY_NEW_TASK);
+            intent.addFlags(Intent.\iFLAG_ACTIVITY_REORDER_TO_FRONT);
+            context.startActivity(intent);
+        }
+        setAlarm(context);
     }
 }
 

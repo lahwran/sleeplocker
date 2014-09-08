@@ -1,0 +1,57 @@
+blacklist:
+com.android.packageinstaller/* #com.android.packageinstaller.UninstallerActivity
+# com.android.packageinstaller/ com.android.packageinstaller.UninstallAppProgress
+com.android.settings/com.android.settings.Settings$ManageApplicationsActivity
+com.android.settings/com.android.settings.applications.InstalledAppDetails
+com.android.settings/com.android.settings.ConfirmLockPassword
+com.android.settings/com.android.settings.DeviceAdminAdd
+com.estrongs.android.pop/* #com.estrongs.android.pop.view.FileExplorerActivity (ES file explorer)
+eu.chainfire.supersu/*
+com.spartacusrex.spartacuside/*
+com.rhmsoft.fm/* #com.rhmsoft.fm.FileManager
+com.metago.astro/* #com.metago.astro.FileChooserActivity
+com.android.vending/* #com.google.android.finsky.activities.MainActivity
+
+
+activate blacklist at 5:00 PM
+activate whitelist at 9:00 PM
+
+maybe whitelist:
+com.google.zxing.client.android/com.google.zxing.client.android.CaptureActivity
+com.google.android.calendar/com.android.calendar.AllInOneActivity
+com.google.android.deskclock/com.android.deskclock.DeskClock
+com.spectrl.DashLight/com.spectrl.DashLight.app.DLAppActivity
+com.google.android.apps.unveil/com.google.android.apps.unveil.CaptureActivity # google goggles
+com.google.android.gms/com.google.android.gms.app.settings.GoogleSettingsActivity
+com.google.android.inputmethod.latin/com.android.inputmethod.latin.setup.SetupWizardActivity # google keyboard
+com.mictale.gpsessentials/com.gpsessentials.ClassicMainMenuActivity
+com.eclipsim.gpsstatus2/com.eclipsim.gpsstatus2.GPSStatus
+com.chartcross.gpstest/com.chartcross.gpstest.GPSTest
+com.vito.lux/com.vito.lux.Dashboard
+com.myfitnesspal.android/com.myfitnesspal.activity.Welcome2
+name.neerajkumar.mobile.android.notepad/name.neerajkumar.mobile.android.notepad.NewNoteActivity
+com.android.contacts/com.android.contacts.activities.PeopleActivity
+com.google.android.apps.plus/com.google.android.apps.photos.phone.PhotosHomeActivity
+com.Slack/com.Slack.app.Messages.FSlackMessages
+com.urbandroid.sleep/com.urbandroid.sleep.alarmclock.AlarmClock
+com.azumio.android.sleeptime/com.azumio.android.sleeptime.SleepTimeActivity
+com.andrwq.recorder/com.andrwq.recorder.RecorderActivity
+com.wolfram.android.alpha/com.wolfram.android.alpha.activity.WolframAlpha
+com.google.android.apps.translate/com.google.android.apps.translate.TranslateActivity
+eu.ebak.silent_mobile/eu.ebak.silent_mobile.MainActivitySnoozeRinger
+
+
+
+whitelist:
+<whatever happens to be the home launcher>
+com.android.settings/com.android.settings.SubSettings
+com.android.settings/com.android.settings.Settings
+com.mendhak.gpslogger/*
+com.android.systemui/com.android.systemui.recent.RecentsActivity
+com.teslacoilsw.launcher/*
+com.google.android.googlequicksearchbox/*
+com.google.android.dialer/*
+com.android.phone/* #com.android.phone.EmergencyDialer
+com.google.android.apps.googlevoice/*
+com.google.android.GoogleCamera/*
+info.staticfree.SuperGenPass/*
