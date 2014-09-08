@@ -7,11 +7,126 @@ import android.widget { Toast }
 import android.view { View }
 import android.util { Log }
 
+import ceylon.collection { HashMap }
+
 import java.lang { JavaString = String }
 
 
 String logtag = "locker.ceylon";
 ComponentName mAdminName = ComponentName("lahwran.androidlocker", "AdminReceiver");
+
+class AccessList({Entry<String,{String+}>+} initialValues) satisfies Category {
+    value contents = HashMap<String, {String+}>{
+        entries=initialValues;
+    };
+
+    for (key->val in contents) {
+        if ("*" in val) {
+            assert(val.size == 1);
+        }
+    }
+
+    shared actual Boolean contains(Object obj) {
+        if (!obj is ComponentName) {
+            return false;
+        }
+        assert(is ComponentName obj);
+
+        value allowedClasses = contents[obj.packageName];
+        if (!allowedClasses exists) {
+            return false;
+        }
+        assert(exists allowedClasses);
+
+        if ("*" in allowedClasses) {
+            return true;
+        }
+        return obj.className in allowedClasses;
+    }
+}
+
+AccessList blacklist = AccessList([
+    // anything related to uninstalling
+    "com.android.packageinstaller" -> {"*"},
+
+    "com.android.settings" -> [
+        // Can be used to uninstall or kill apps
+        "com.android.settings.Settings$ManageApplicationsActivity",
+        // Same as above
+        "com.android.settings.applications.InstalledAppDetails",
+        // Can be used to disable screen lock
+        "com.android.settings.ConfirmLockPassword",
+        // Can be used to disable device admins
+        "com.android.settings.DeviceAdminAdd"
+    ],
+
+    // root manager - anything, this also disallows all root requests
+    "eu.chainfire.supersu" -> {"*"},
+
+    // commandline to which I give root.
+    // therefore can be used to uninstall apps.
+    "com.spartacusrex.spartacuside" -> {"*"},
+
+    // play store - can be used to install un-blacklisted apps or uninstall apps
+    "com.android.vending" -> {"*"},
+
+    // File managers - could be used (especially with root) to delete
+    // the app
+    "com.estrongs.android.pop" -> {"*"}, // ES file manager
+    "com.rhmsoft.fm" -> {"*"}, // some random file manager
+    "com.metago.astro" -> {"*"} // astro file manager
+]);
+
+AccessList whitelist = AccessList([
+    // tentative:
+    "com.google.zxing.client.android" -> {"*"},
+    "com.google.android.calendar" -> {"*"},
+    "com.google.android.deskclock" -> {"*"},
+    "com.spectrl.DashLight" -> {"*"},
+
+    // google goggles
+    "com.google.android.apps.unveil" -> {"*"},
+
+    "com.mictale.gpsessentials" -> {"*"},
+    "com.eclipsim.gpsstatus2" -> {"*"},
+    "com.chartcross.gpstest" -> {"*"},
+    "com.vito.lux" -> {"*"},
+    "com.myfitnesspal.android" -> {"*"},
+    "name.neerajkumar.mobile.android.notepad" -> {"*"},
+    "com.android.contacts" -> {"*"},
+
+    // not sure about the photos app... maybe?
+    //"com.google.android.apps.plus" -> {"com.google.android.apps.photos.phone.PhotosHomeActivity"},
+
+    "com.Slack" -> {"*"},
+    "com.urbandroid.sleep" -> {"*"},
+    "com.azumio.android.sleeptime" -> {"*"},
+    "com.andrwq.recorder" -> {"*"},
+    "com.wolfram.android.alpha" -> {"*"},
+    "com.google.android.apps.translate" -> {"*"},
+    "eu.ebak.silent_mobile" -> {"*"},
+
+    "android" -> {"com.android.internal.app.ChooserActivity"},
+    "com.jamesmc.writer" -> {"*"},
+
+    // whitelist:
+    "com.android.settings" -> {
+        "com.android.settings.SubSettings",
+        "com.android.settings.Settings"
+    },
+    "com.mendhak.gpslogger" -> {"*"},
+    "com.android.systemui" -> {"com.android.systemui.recent.RecentsActivity"},
+    "com.teslacoilsw.launcher" -> {"*"},
+    "com.google.android.googlequicksearchbox" -> {"*"},
+    "com.google.android.dialer" -> {"*"},
+
+    // includes emergency dialer
+    "com.android.phone" -> {"*"},
+
+    "com.google.android.apps.googlevoice" -> {"*"},
+    "com.google.android.GoogleCamera" -> {"*"},
+    "info.staticfree.SuperGenPass" -> {"*"}
+]);
 
 
 AlarmManager alarmManager(Context c) {
@@ -51,7 +166,6 @@ shared class MainActivity() extends Activity() {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
 
-        Log.d(logtag, "``getLauncherIntent(this)``");
     }
 
     shared void doLock(View view) {
@@ -76,6 +190,7 @@ void setAlarm(Context c) {
     value intent = Intent(c, CeylonHacks.alarmclass);
     value pendingintent = PendingIntent.getBroadcast(c, 0,
             intent, PendingIntent.\iFLAG_UPDATE_CURRENT);
+    alarmManager(c).cancel(pendingintent);
     alarmManager(c).setExact(AlarmManager.\iELAPSED_REALTIME_WAKEUP,
             timedelta(1000), pendingintent);
 }
@@ -91,8 +206,9 @@ shared class AlarmReceiver() extends BroadcastReceiver() {
     shared actual void onReceive(Context context, Intent alarmintent) {
         value taskInfo = activityManager(context).getRunningTasks(1); 
         value task = taskInfo.get(0);
-        Log.d(logtag, "CURRENT Activity :: ``task.topActivity.flattenToString() else "null"`` - 
-                       ``task.description else "null"`` - ``task.baseActivity.flattenToString() else "null"``");
+        value blacklisted = task.topActivity in blacklist then "blacklisted" else "not blacklisted";
+        value whitelisted = task.topActivity in whitelist then "whitelisted" else "not whitelisted";
+        Log.d(logtag, "``blacklisted``, ``whitelisted``: ``task.topActivity.flattenToString()``");
         if (task.topActivity.flattenToString() == "com.android.systemui/com.android.systemui.recent.RecentsActivity") {
             value intent = getLauncherIntent(context);
             intent.addFlags(Intent.\iFLAG_ACTIVITY_NEW_TASK);
