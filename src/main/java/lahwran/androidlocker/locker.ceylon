@@ -251,14 +251,13 @@ PendingIntent _broadcast(Context c, Intent intent) {
 }
 
 void setAlarms(Context c) {
-    Log.d(logtag, "Setting alarms");
     value currentphase = phases.find();
     value pollintent = _broadcast(c, Intent(c, CeylonHacks.pollalarmclass));
     if (currentphase.poll) {
         // would be nice to make this not exact, but the deltas can be too long
         // no wake, though, probably nbd
-        alarmManager(c).setExact(AlarmManager.\iELAPSED_REALTIME,
-                timedelta(1000), pollintent);
+        alarmManager(c).setRepeating(AlarmManager.\iELAPSED_REALTIME,
+                timedelta(1000), 1000, pollintent);
     } else {
         alarmManager(c).cancel(pollintent);
     }
@@ -295,17 +294,15 @@ shared class PollingAlarmReceiver() extends BroadcastReceiver() {
 
         value blacklisted = task.topActivity in blacklist then "blacklisted" else "not blacklisted";
         value whitelisted = task.topActivity in whitelist then "whitelisted" else "not whitelisted";
-        Log.d(logtag, "``blacklisted``, ``whitelisted``: ``task.topActivity.flattenToString()``");
 
         value phase = phases.find();
-        Log.d(logtag, "Current phase: ``phase``");
 
         if (!phase.allowed(task.topActivity)) {
             Log.d(logtag, "CURRENT PHASE DOES NOT ALLOW ACTIVITY");
-            //value intent = getLauncherIntent(context);
-            //intent.addFlags(Intent.\iFLAG_ACTIVITY_NEW_TASK);
-            //intent.addFlags(Intent.\iFLAG_ACTIVITY_REORDER_TO_FRONT);
-            //context.startActivity(intent);
+            value intent = getLauncherIntent(context);
+            intent.addFlags(Intent.\iFLAG_ACTIVITY_NEW_TASK);
+            intent.addFlags(Intent.\iFLAG_ACTIVITY_REORDER_TO_FRONT);
+            context.startActivity(intent);
         }
         setAlarms(context);
     }
