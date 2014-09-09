@@ -8,6 +8,7 @@ import android.view { View }
 import android.util { Log }
 
 import ceylon.collection { HashMap }
+import ceylon.time { now, today, time, Time, Period }
 
 import java.lang { JavaString = String }
 
@@ -184,6 +185,18 @@ shared class MainActivity() extends Activity() {
 
 Integer timedelta(Integer delta) {
     return SystemClock.elapsedRealtime() + delta;
+}
+
+Integer nextInstanceOfTime(Time t) {
+    value nowi = now();
+    value todayi = today();
+    variable value dt = todayi.at(t);
+    if (dt.instant() < nowi) {
+        dt = todayi.plus(Period {
+            days = 1;
+        }).at(t);
+    }
+    return dt.instant().millisecondsOfEpoch;
 }
 
 void setAlarm(Context c) {
