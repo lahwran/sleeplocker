@@ -213,6 +213,9 @@ shared class MainActivity() extends Activity() {
     shared actual void onCreate(Bundle? savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
+        if (phases.find().enforce) {
+            setAlarms(this);
+        }
     }
 
     shared void doLock(View view) {
@@ -224,7 +227,9 @@ shared class MainActivity() extends Activity() {
     }
 
     shared void disableAlarm(View view) {
-        removeAlarms(this);
+        if (!phases.find().enforce) {
+            removeAlarms(this);
+        }
     }
 
 }
@@ -297,7 +302,7 @@ shared class PollingAlarmReceiver() extends BroadcastReceiver() {
 
         value phase = phases.find();
 
-        if (!phase.allowed(task.topActivity)) {
+        if (phase.enforce && !phase.allowed(task.topActivity)) {
             Log.d(logtag, "CURRENT PHASE DOES NOT ALLOW ACTIVITY");
             value intent = getLauncherIntent(context);
             intent.addFlags(Intent.\iFLAG_ACTIVITY_NEW_TASK);
@@ -323,6 +328,12 @@ shared class HardLockAlarmReceiver() extends BroadcastReceiver() {
 shared class UnlockAlarmReceiver() extends BroadcastReceiver() {
     shared actual void onReceive(Context context, Intent alarmintent) {
         Log.d(logtag, "Unlock time! ensuring alarms are set");
+        setAlarms(context);
+    }
+}
+shared class BootReceiver() extends BroadcastReceiver() {
+    shared actual void onReceive(Context context, Intent alarmintent) {
+        Log.d(logtag, "Booted! making sure alarms are set");
         setAlarms(context);
     }
 }
