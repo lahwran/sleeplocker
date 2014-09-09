@@ -162,11 +162,57 @@ Intent getLauncherIntent(Context c) {
     return intent;
 }
 
+object phases {
+    shared abstract class Phase() {
+        shared default Boolean poll = true;
+        shared default Boolean enforce = true;
+        shared formal Boolean allowed(ComponentName activity);
+        shared formal Time start;
+    }
+
+    shared object day extends Phase() {
+        string => "day";
+        poll = false;
+        enforce = false;
+        allowed(ComponentName activity) => true;
+        start = time(9, 0);
+    }
+    shared object pretrigger extends Phase() {
+        string => "pretrigger";
+        enforce = false;
+        allowed(ComponentName activity) => true;
+        start = time(12 + 6, 0);
+    }
+    shared object softlock extends Phase() {
+        string => "softlock";
+        allowed(ComponentName activity) => !(activity in blacklist);
+        start = time(12 + 6, 10);
+    }
+    shared object hardlock extends Phase() {
+        string => "hardlock";
+        allowed(ComponentName activity) => activity in whitelist;
+        start = time(12 + 9, 0);
+    }
+    shared Phase find() {
+        value n = now().time();
+        if (n >= hardlock.start) {
+            return hardlock;
+        } else if (n >= softlock.start) {
+            return softlock;
+        } else if (n >= pretrigger.start) {
+            return pretrigger;
+        } else if (n >= day.start) {
+            return day;
+        } else {
+            return hardlock;
+        }
+    }
+}
+
 shared class MainActivity() extends Activity() {
     shared actual void onCreate(Bundle? savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
-
     }
 
     shared void doLock(View view) {
@@ -174,11 +220,11 @@ shared class MainActivity() extends Activity() {
     }
 
     shared void enableAlarm(View view) {
-        setAlarm(this);
+        setAlarms(this);
     }
 
     shared void disableAlarm(View view) {
-        removeAlarm(this);
+        removeAlarms(this);
     }
 
 }
@@ -199,36 +245,88 @@ Integer nextInstanceOfTime(Time t) {
     return dt.instant().millisecondsOfEpoch;
 }
 
-void setAlarm(Context c) {
-    value intent = Intent(c, CeylonHacks.alarmclass);
-    value pendingintent = PendingIntent.getBroadcast(c, 0,
+PendingIntent _broadcast(Context c, Intent intent) {
+    return PendingIntent.getBroadcast(c, 0,
             intent, PendingIntent.\iFLAG_UPDATE_CURRENT);
-    alarmManager(c).cancel(pendingintent);
-    alarmManager(c).setExact(AlarmManager.\iELAPSED_REALTIME_WAKEUP,
-            timedelta(1000), pendingintent);
 }
 
-void removeAlarm(Context c) {
-    value intent = Intent(c, CeylonHacks.alarmclass);
-    value pendingintent = PendingIntent.getBroadcast(c, 0,
-            intent, PendingIntent.\iFLAG_UPDATE_CURRENT);
-    alarmManager(c).cancel(pendingintent);
+void setAlarms(Context c) {
+    Log.d(logtag, "Setting alarms");
+    value currentphase = phases.find();
+    value pollintent = _broadcast(c, Intent(c, CeylonHacks.pollalarmclass));
+    if (currentphase.poll) {
+        // would be nice to make this not exact, but the deltas can be too long
+        // no wake, though, probably nbd
+        alarmManager(c).setExact(AlarmManager.\iELAPSED_REALTIME,
+                timedelta(1000), pollintent);
+    } else {
+        alarmManager(c).cancel(pollintent);
+    }
+
+    value phaseintents = {
+        phases.day -> _broadcast(c, Intent(c, CeylonHacks.unlockalarmclass)),
+        phases.softlock -> _broadcast(c, Intent(c, CeylonHacks.softlockalarmclass)),
+        phases.hardlock -> _broadcast(c, Intent(c, CeylonHacks.hardlockalarmclass))
+    };
+    for (phase->intent in phaseintents) {
+        // do these need to be exact?
+        alarmManager(c).setExact(AlarmManager.\iRTC,
+                nextInstanceOfTime(phase.start), intent);
+    }
 }
 
-shared class AlarmReceiver() extends BroadcastReceiver() {
+void removeAlarms(Context c) {
+    Log.d(logtag, "Removing all alarms");
+    value intents = {
+        _broadcast(c, Intent(c, CeylonHacks.pollalarmclass)),
+        _broadcast(c, Intent(c, CeylonHacks.softlockalarmclass)),
+        _broadcast(c, Intent(c, CeylonHacks.hardlockalarmclass)),
+        _broadcast(c, Intent(c, CeylonHacks.unlockalarmclass))
+    };
+    for (pendingintent in intents) {
+        alarmManager(c).cancel(pendingintent);
+    }
+}
+
+shared class PollingAlarmReceiver() extends BroadcastReceiver() {
     shared actual void onReceive(Context context, Intent alarmintent) {
         value taskInfo = activityManager(context).getRunningTasks(1); 
         value task = taskInfo.get(0);
+
         value blacklisted = task.topActivity in blacklist then "blacklisted" else "not blacklisted";
         value whitelisted = task.topActivity in whitelist then "whitelisted" else "not whitelisted";
         Log.d(logtag, "``blacklisted``, ``whitelisted``: ``task.topActivity.flattenToString()``");
-        if (task.topActivity.flattenToString() == "com.android.systemui/com.android.systemui.recent.RecentsActivity") {
-            value intent = getLauncherIntent(context);
-            intent.addFlags(Intent.\iFLAG_ACTIVITY_NEW_TASK);
-            intent.addFlags(Intent.\iFLAG_ACTIVITY_REORDER_TO_FRONT);
-            context.startActivity(intent);
+
+        value phase = phases.find();
+        Log.d(logtag, "Current phase: ``phase``");
+
+        if (!phase.allowed(task.topActivity)) {
+            Log.d(logtag, "CURRENT PHASE DOES NOT ALLOW ACTIVITY");
+            //value intent = getLauncherIntent(context);
+            //intent.addFlags(Intent.\iFLAG_ACTIVITY_NEW_TASK);
+            //intent.addFlags(Intent.\iFLAG_ACTIVITY_REORDER_TO_FRONT);
+            //context.startActivity(intent);
         }
-        setAlarm(context);
+        setAlarms(context);
+    }
+}
+
+shared class SoftLockAlarmReceiver() extends BroadcastReceiver() {
+    shared actual void onReceive(Context context, Intent alarmintent) {
+        Log.d(logtag, "Soft lock time! ensuring alarms are set");
+        setAlarms(context);
+    }
+}
+shared class HardLockAlarmReceiver() extends BroadcastReceiver() {
+    shared actual void onReceive(Context context, Intent alarmintent) {
+        Log.d(logtag, "Hard lock time! ensuring alarms are set");
+        setAlarms(context);
+    }
+}
+shared class UnlockAlarmReceiver() extends BroadcastReceiver() {
+    shared actual void onReceive(Context context, Intent alarmintent) {
+        Log.d(logtag, "Unlock time! ensuring alarms are set");
+        setAlarms(context);
     }
 }
 

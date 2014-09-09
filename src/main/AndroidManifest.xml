@@ -26,7 +26,19 @@
             </intent-filter>
         </receiver>
         <receiver
-            android:name=".AlarmReceiver"
+            android:name=".PollingAlarmReceiver"
+            android:exported="false"
+            />
+        <receiver
+            android:name=".SoftLockAlarmReceiver"
+            android:exported="false"
+            />
+        <receiver
+            android:name=".HardLockAlarmReceiver"
+            android:exported="false"
+            />
+        <receiver
+            android:name=".UnlockAlarmReceiver"
             android:exported="false"
             />
     </application>
