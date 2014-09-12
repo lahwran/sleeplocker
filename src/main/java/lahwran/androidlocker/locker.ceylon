@@ -7,6 +7,8 @@ import android.widget { Toast }
 import android.view { View }
 import android.util { Log }
 
+import ceylon.interop.java { javaClass }
+
 import ceylon.collection { HashMap }
 import ceylon.time { now, today, time, Time, Period }
 
@@ -16,7 +18,8 @@ import java.lang { JavaString = String }
 String logtag = "locker.ceylon";
 ComponentName mAdminName = ComponentName("lahwran.androidlocker", "AdminReceiver");
 
-class AccessList({Entry<String,{String+}>+} initialValues) satisfies Category {
+class AccessList({<String->{String+}>+} initialValues)
+        satisfies Category<ComponentName> {
     value contents = HashMap<String, {String+}>{
         entries=initialValues;
     };
@@ -27,12 +30,7 @@ class AccessList({Entry<String,{String+}>+} initialValues) satisfies Category {
         }
     }
 
-    shared actual Boolean contains(Object obj) {
-        if (!obj is ComponentName) {
-            return false;
-        }
-        assert(is ComponentName obj);
-
+    shared actual Boolean contains(ComponentName obj) {
         value allowedClasses = contents[obj.packageName];
         if (!allowedClasses exists) {
             return false;
@@ -175,7 +173,7 @@ object phases {
         poll = false;
         enforce = false;
         allowed(ComponentName activity) => true;
-        start = time(9, 0);
+        start = time(8, 30);
     }
     shared object pretrigger extends Phase() {
         string => "pretrigger";
@@ -194,6 +192,7 @@ object phases {
         start = time(12 + 9, 0);
     }
     shared Phase find() {
+        // TODO: geofencing. only hardlock when at home?
         value n = now().time();
         if (n >= hardlock.start) {
             return hardlock;
@@ -250,14 +249,16 @@ Integer nextInstanceOfTime(Time t) {
     return dt.instant().millisecondsOfEpoch;
 }
 
-PendingIntent _broadcast(Context c, Intent intent) {
+PendingIntent _broadcast<Receiver>(Context c)
+        given Receiver satisfies BroadcastReceiver {
     return PendingIntent.getBroadcast(c, 0,
-            intent, PendingIntent.\iFLAG_UPDATE_CURRENT);
+            Intent(c, javaClass<Receiver>()),
+            PendingIntent.\iFLAG_UPDATE_CURRENT);
 }
 
 void setAlarms(Context c) {
     value currentphase = phases.find();
-    value pollintent = _broadcast(c, Intent(c, CeylonHacks.pollalarmclass));
+    value pollintent = _broadcast<PollingAlarmReceiver>(c);
     if (currentphase.poll) {
         // would be nice to make this not exact, but the deltas can be too long
         // no wake, though, probably nbd
@@ -268,9 +269,9 @@ void setAlarms(Context c) {
     }
 
     value phaseintents = {
-        phases.day -> _broadcast(c, Intent(c, CeylonHacks.unlockalarmclass)),
-        phases.softlock -> _broadcast(c, Intent(c, CeylonHacks.softlockalarmclass)),
-        phases.hardlock -> _broadcast(c, Intent(c, CeylonHacks.hardlockalarmclass))
+        phases.day -> _broadcast<UnlockAlarmReceiver>(c),
+        phases.softlock -> _broadcast<SoftLockAlarmReceiver>(c),
+        phases.hardlock -> _broadcast<HardLockAlarmReceiver>(c)
     };
     for (phase->intent in phaseintents) {
         // do these need to be exact?
@@ -282,10 +283,10 @@ void setAlarms(Context c) {
 void removeAlarms(Context c) {
     Log.d(logtag, "Removing all alarms");
     value intents = {
-        _broadcast(c, Intent(c, CeylonHacks.pollalarmclass)),
-        _broadcast(c, Intent(c, CeylonHacks.softlockalarmclass)),
-        _broadcast(c, Intent(c, CeylonHacks.hardlockalarmclass)),
-        _broadcast(c, Intent(c, CeylonHacks.unlockalarmclass))
+        _broadcast<PollingAlarmReceiver>(c),
+        _broadcast<SoftLockAlarmReceiver>(c),
+        _broadcast<HardLockAlarmReceiver>(c),
+        _broadcast<UnlockAlarmReceiver>(c)
     };
     for (pendingintent in intents) {
         alarmManager(c).cancel(pendingintent);
