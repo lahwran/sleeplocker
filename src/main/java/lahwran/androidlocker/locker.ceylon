@@ -76,11 +76,28 @@ AccessList blacklist = AccessList([
     // play store - can be used to install un-blacklisted apps or uninstall apps
     "com.android.vending" -> {"*"},
 
-    // File managers - could be used (especially with root) to delete
-    // the app
     "com.estrongs.android.pop" -> {"*"}, // ES file manager
+]);
+
+AccessList miscblacklist = AccessList([
+    // banned on weekdays! (well, except a couple of these
+    //                      I need for work, so allowed during day)
+    // mostly stuff I use for reddit/tumblr/etc.
+
+    
+    "com.tumblr" -> {"*"},
+    "com.deeptrouble.yaarreddit" -> {"*"},
+    "org.mozilla.firefox" -> {"*"},
+    "com.android.chrome" -> {"*"},
+
+    // misc:
+    "com.google.android.googlequicksearchbox" -> {"*"},
     "com.rhmsoft.fm" -> {"*"}, // some random file manager
     "com.metago.astro" -> {"*"} // astro file manager
+]);
+
+AccessList morningwhitelist = AccessList([
+    "com.google.android.music" -> {"*"}
 ]);
 
 AccessList whitelist = AccessList([
@@ -90,8 +107,8 @@ AccessList whitelist = AccessList([
     "com.google.android.deskclock" -> {"*"},
     "com.spectrl.DashLight" -> {"*"},
 
-    // google goggles
-    "com.google.android.apps.unveil" -> {"*"},
+    // weather (and news, but w/e, I don't even want to read that)
+    "com.google.android.apps.genie.geniewidget" -> {"*"},
 
     "com.mictale.gpsessentials" -> {"*"},
     "com.eclipsim.gpsstatus2" -> {"*"},
@@ -112,7 +129,7 @@ AccessList whitelist = AccessList([
     "com.google.android.apps.translate" -> {"*"},
     "eu.ebak.silent_mobile" -> {"*"},
 
-    "android" -> {"com.android.internal.app.ChooserActivity"},
+    "android" -> {"*"},
     "com.jamesmc.writer" -> {"*"},
 
     // whitelist:
@@ -123,7 +140,6 @@ AccessList whitelist = AccessList([
     "com.mendhak.gpslogger" -> {"*"},
     "com.android.systemui" -> {"com.android.systemui.recent.RecentsActivity"},
     "com.teslacoilsw.launcher" -> {"*"},
-    "com.google.android.googlequicksearchbox" -> {"*"},
     "com.google.android.dialer" -> {"*"},
 
     // includes emergency dialer
@@ -182,45 +198,52 @@ object phases satisfies Day {
     shared abstract class SequenceDay() satisfies Day {
         shared formal Phase day;
         shared formal Phase pretrigger;
-        shared formal Phase softlock;
-        shared formal Phase hardlock;
+        shared formal Phase evening;
+        shared formal Phase night;
+        shared formal Phase morning;
 
         shared actual Time nextChange {
             value n = now().time();
             // reverse order
-            if (n >= hardlock.start) {
+            if (n >= night.start) {
                 return time(0, 10);
-            } else if (n >= softlock.start) {
-                return hardlock.start;
+            } else if (n >= evening.start) {
+                return night.start;
             } else if (n >= pretrigger.start) {
-                return softlock.start;
+                return evening.start;
             } else if (n >= day.start) {
-                return softlock.start;
+                return evening.start;
             } else {
                 return day.start;
             }
         }
 
         shared actual Phase current {
-            // TODO: geofencing. only hardlock when at home?
+            // TODO: geofencing. only night when at home?
             value n = now().time();
             // reverse order
-            if (n >= hardlock.start) {
-                return hardlock;
-            } else if (n >= softlock.start) {
-                return softlock;
+            if (n >= night.start) {
+                return night;
+            } else if (n >= evening.start) {
+                return evening;
             } else if (n >= pretrigger.start) {
                 return pretrigger;
             } else if (n >= day.start) {
                 return day;
             } else {
-                return hardlock;
+                return morning;
             }
         }
     }
     shared object weekday extends SequenceDay() {
         string => "weekday";
         // don't you think it's cheating to just copy and paste it?
+        shared actual object morning extends Phase() {
+            string => "morning";
+            allowed(ComponentName activity) => 
+                (activity in whitelist || activity in morningwhitelist);
+            start = time(0, 0);
+        }
         shared actual object day extends Phase() {
             string => "day";
             poll = false;
@@ -234,14 +257,15 @@ object phases satisfies Day {
             allowed(ComponentName activity) => true;
             start = time(12 + 5, 00);
         }
-        shared actual object softlock extends Phase() {
-            string => "softlock";
+        shared actual object evening extends Phase() {
+            string => "evening";
             allowed(ComponentName activity) =>
-                !(activity in blacklist); //|| activity in socialnetworking);
+                !(activity in blacklist
+                  || activity in miscblacklist);
             start = time(12 + 5, 10);
         }
-        shared actual object hardlock extends Phase() {
-            string => "hardlock";
+        shared actual object night extends Phase() {
+            string => "night";
             allowed(ComponentName activity) => activity in whitelist;
             start = time(12 + 9, 0);
         }
@@ -249,6 +273,12 @@ object phases satisfies Day {
     shared object weekend extends SequenceDay() {
         string => "weekday";
         // don't you think it's cheating to just copy and paste it?
+        shared actual object morning extends Phase() {
+            string => "morning";
+            allowed(ComponentName activity) => 
+                (activity in whitelist || activity in morningwhitelist);
+            start = time(0, 0);
+        }
         shared actual object day extends Phase() {
             string => "day";
             poll = false;
@@ -262,13 +292,13 @@ object phases satisfies Day {
             allowed(ComponentName activity) => true;
             start = time(12 + 6, 0);
         }
-        shared actual object softlock extends Phase() {
-            string => "softlock";
+        shared actual object evening extends Phase() {
+            string => "evening";
             allowed(ComponentName activity) => !(activity in blacklist);
             start = time(12 + 6, 10);
         }
-        shared actual object hardlock extends Phase() {
-            string => "hardlock";
+        shared actual object night extends Phase() {
+            string => "night";
             allowed(ComponentName activity) => activity in whitelist;
             start = time(12 + 9, 0);
         }
