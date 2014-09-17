@@ -10,7 +10,14 @@ import android.util { Log }
 import ceylon.interop.java { javaClass }
 
 import ceylon.collection { HashMap }
-import ceylon.time { now, today, time, Time, Period }
+import ceylon.time {
+    now, today, time,
+    Time, Period, Instant
+}
+import ceylon.time.base {
+    DayOfWeek,
+    sunday, monday, tuesday, wednesday, thursday, friday, saturday
+}
 
 import java.lang { JavaString = String }
 
@@ -159,52 +166,130 @@ Intent getLauncherIntent(Context c) {
     assert(exists intent);
     return intent;
 }
+abstract class Phase() {
+    shared default Boolean poll = true;
+    shared default Boolean enforce = true;
+    shared formal Boolean allowed(ComponentName activity);
+    shared formal Time start;
+}
+interface Day {
+    shared formal Time nextChange;
+    shared formal Phase current;
+}
 
-object phases {
-    shared abstract class Phase() {
-        shared default Boolean poll = true;
-        shared default Boolean enforce = true;
-        shared formal Boolean allowed(ComponentName activity);
-        shared formal Time start;
-    }
+object phases satisfies Day {
+    // TODO: could use, like, TreeMap or something
+    shared abstract class SequenceDay() satisfies Day {
+        shared formal Phase day;
+        shared formal Phase pretrigger;
+        shared formal Phase softlock;
+        shared formal Phase hardlock;
 
-    shared object day extends Phase() {
-        string => "day";
-        poll = false;
-        enforce = false;
-        allowed(ComponentName activity) => true;
-        start = time(8, 30);
-    }
-    shared object pretrigger extends Phase() {
-        string => "pretrigger";
-        enforce = false;
-        allowed(ComponentName activity) => true;
-        start = time(12 + 6, 0);
-    }
-    shared object softlock extends Phase() {
-        string => "softlock";
-        allowed(ComponentName activity) => !(activity in blacklist);
-        start = time(12 + 6, 10);
-    }
-    shared object hardlock extends Phase() {
-        string => "hardlock";
-        allowed(ComponentName activity) => activity in whitelist;
-        start = time(12 + 9, 0);
-    }
-    shared Phase find() {
-        // TODO: geofencing. only hardlock when at home?
-        value n = now().time();
-        if (n >= hardlock.start) {
-            return hardlock;
-        } else if (n >= softlock.start) {
-            return softlock;
-        } else if (n >= pretrigger.start) {
-            return pretrigger;
-        } else if (n >= day.start) {
-            return day;
-        } else {
-            return hardlock;
+        shared actual Time nextChange {
+            value n = now().time();
+            // reverse order
+            if (n >= hardlock.start) {
+                return time(0, 10);
+            } else if (n >= softlock.start) {
+                return hardlock.start;
+            } else if (n >= pretrigger.start) {
+                return softlock.start;
+            } else if (n >= day.start) {
+                return softlock.start;
+            } else {
+                return day.start;
+            }
         }
+
+        shared actual Phase current {
+            // TODO: geofencing. only hardlock when at home?
+            value n = now().time();
+            // reverse order
+            if (n >= hardlock.start) {
+                return hardlock;
+            } else if (n >= softlock.start) {
+                return softlock;
+            } else if (n >= pretrigger.start) {
+                return pretrigger;
+            } else if (n >= day.start) {
+                return day;
+            } else {
+                return hardlock;
+            }
+        }
+    }
+    shared object weekday extends SequenceDay() {
+        string => "weekday";
+        // don't you think it's cheating to just copy and paste it?
+        shared actual object day extends Phase() {
+            string => "day";
+            poll = false;
+            enforce = false;
+            allowed(ComponentName activity) => true;
+            start = time(8, 30);
+        }
+        shared actual object pretrigger extends Phase() {
+            string => "pretrigger";
+            enforce = false;
+            allowed(ComponentName activity) => true;
+            start = time(12 + 5, 00);
+        }
+        shared actual object softlock extends Phase() {
+            string => "softlock";
+            allowed(ComponentName activity) =>
+                !(activity in blacklist); //|| activity in socialnetworking);
+            start = time(12 + 5, 10);
+        }
+        shared actual object hardlock extends Phase() {
+            string => "hardlock";
+            allowed(ComponentName activity) => activity in whitelist;
+            start = time(12 + 9, 0);
+        }
+    }
+    shared object weekend extends SequenceDay() {
+        string => "weekday";
+        // don't you think it's cheating to just copy and paste it?
+        shared actual object day extends Phase() {
+            string => "day";
+            poll = false;
+            enforce = false;
+            allowed(ComponentName activity) => true;
+            start = time(10, 30);
+        }
+        shared actual object pretrigger extends Phase() {
+            string => "pretrigger";
+            enforce = false;
+            allowed(ComponentName activity) => true;
+            start = time(12 + 6, 0);
+        }
+        shared actual object softlock extends Phase() {
+            string => "softlock";
+            allowed(ComponentName activity) => !(activity in blacklist);
+            start = time(12 + 6, 10);
+        }
+        shared actual object hardlock extends Phase() {
+            string => "hardlock";
+            allowed(ComponentName activity) => activity in whitelist;
+            start = time(12 + 9, 0);
+        }
+
+    }
+    shared Day today {
+        DayOfWeek d = now().date().dayOfWeek;
+        switch (d)
+        case (monday, tuesday, wednesday, thursday, friday) {
+            return weekday;
+        }
+        case (saturday, sunday) {
+            return weekend;
+        }
+    }
+    shared actual Time nextChange {
+        return today.nextChange;
+    }
+    shared actual Phase current {
+        Log.d(logtag, "Current phase: ``today``.``today.current``");
+        return today.current;
     }
 }
 
@@ -212,7 +297,7 @@ shared class MainActivity() extends Activity() {
     shared actual void onCreate(Bundle? savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
-        if (phases.find().enforce) {
+        if (phases.current.enforce) {
             setAlarms(this);
         }
     }
@@ -226,7 +311,7 @@ shared class MainActivity() extends Activity() {
     }
 
     shared void disableAlarm(View view) {
-        if (!phases.find().enforce) {
+        if (!phases.current.enforce) {
             removeAlarms(this);
         }
     }
@@ -237,7 +322,7 @@ Integer timedelta(Integer delta) {
     return SystemClock.elapsedRealtime() + delta;
 }
 
-Integer nextInstanceOfTime(Time t) {
+Instant nextInstanceOfTime(Time t) {
     value nowi = now();
     value todayi = today();
     variable value dt = todayi.at(t);
@@ -246,7 +331,7 @@ Integer nextInstanceOfTime(Time t) {
             days = 1;
         }).at(t);
     }
-    return dt.instant().millisecondsOfEpoch;
+    return dt.instant();
 }
 
 PendingIntent _broadcast<Receiver>(Context c)
@@ -257,36 +342,38 @@ PendingIntent _broadcast<Receiver>(Context c)
 }
 
 void setAlarms(Context c) {
-    value currentphase = phases.find();
+    value currentphase = phases.current;
     value pollintent = _broadcast<PollingAlarmReceiver>(c);
+    Log.d(logtag, "Setting polling:
+                   ``pollintent``
+                   ``currentphase``
+                   ``currentphase.poll``");
     if (currentphase.poll) {
         // would be nice to make this not exact, but the deltas can be too long
         // no wake, though, probably nbd
-        alarmManager(c).setRepeating(AlarmManager.\iELAPSED_REALTIME,
-                timedelta(1000), 1000, pollintent);
+        alarmManager(c).set(AlarmManager.\iELAPSED_REALTIME,
+                timedelta(1000), pollintent);
     } else {
         alarmManager(c).cancel(pollintent);
     }
 
-    value phaseintents = {
-        phases.day -> _broadcast<UnlockAlarmReceiver>(c),
-        phases.softlock -> _broadcast<SoftLockAlarmReceiver>(c),
-        phases.hardlock -> _broadcast<HardLockAlarmReceiver>(c)
-    };
-    for (phase->intent in phaseintents) {
-        // do these need to be exact?
-        alarmManager(c).setExact(AlarmManager.\iRTC,
-                nextInstanceOfTime(phase.start), intent);
-    }
+    // does this need to be exact?
+    value intent = _broadcast<ComeAliveReceiver>(c);
+    value nc = phases.nextChange;
+    value next = nextInstanceOfTime(nc);
+    Log.d(logtag, "Setting next come alive:
+                   ``intent``
+                   ``nc``
+                   ``next``");
+    alarmManager(c).setExact(AlarmManager.\iRTC,
+            next.millisecondsOfEpoch, intent);
 }
 
 void removeAlarms(Context c) {
     Log.d(logtag, "Removing all alarms");
     value intents = {
         _broadcast<PollingAlarmReceiver>(c),
-        _broadcast<SoftLockAlarmReceiver>(c),
-        _broadcast<HardLockAlarmReceiver>(c),
-        _broadcast<UnlockAlarmReceiver>(c)
+        _broadcast<ComeAliveReceiver>(c)
     };
     for (pendingintent in intents) {
         alarmManager(c).cancel(pendingintent);
@@ -301,10 +388,15 @@ shared class PollingAlarmReceiver() extends BroadcastReceiver() {
         value blacklisted = task.topActivity in blacklist then "blacklisted" else "not blacklisted";
         value whitelisted = task.topActivity in whitelist then "whitelisted" else "not whitelisted";
 
-        value phase = phases.find();
+        value phase = phases.current;
+        Log.d(logtag, "Polling event:
+                       phase: ``phase``
+                       enforce: ``phase.enforce``
+                       activity: ``task.topActivity.flattenToString()``
+                       allowed: ``phase.allowed(task.topActivity)``");
 
         if (phase.enforce && !phase.allowed(task.topActivity)) {
-            Log.d(logtag, "CURRENT PHASE DOES NOT ALLOW ACTIVITY");
+            Log.d(logtag, "CURRENT PHASE DOES NOT ALLOW ACTIVITY ``task.topActivity.flattenToString()``");
             value intent = getLauncherIntent(context);
             intent.addFlags(Intent.\iFLAG_ACTIVITY_NEW_TASK);
             intent.addFlags(Intent.\iFLAG_ACTIVITY_REORDER_TO_FRONT);
@@ -314,27 +406,9 @@ shared class PollingAlarmReceiver() extends BroadcastReceiver() {
     }
 }
 
-shared class SoftLockAlarmReceiver() extends BroadcastReceiver() {
+shared class ComeAliveReceiver() extends BroadcastReceiver() {
     shared actual void onReceive(Context context, Intent alarmintent) {
-        Log.d(logtag, "Soft lock time! ensuring alarms are set");
-        setAlarms(context);
-    }
-}
-shared class HardLockAlarmReceiver() extends BroadcastReceiver() {
-    shared actual void onReceive(Context context, Intent alarmintent) {
-        Log.d(logtag, "Hard lock time! ensuring alarms are set");
-        setAlarms(context);
-    }
-}
-shared class UnlockAlarmReceiver() extends BroadcastReceiver() {
-    shared actual void onReceive(Context context, Intent alarmintent) {
-        Log.d(logtag, "Unlock time! ensuring alarms are set");
-        setAlarms(context);
-    }
-}
-shared class BootReceiver() extends BroadcastReceiver() {
-    shared actual void onReceive(Context context, Intent alarmintent) {
-        Log.d(logtag, "Booted! making sure alarms are set");
+        Log.d(logtag, "Event time! ensuring alarms are set");
         setAlarms(context);
     }
 }
