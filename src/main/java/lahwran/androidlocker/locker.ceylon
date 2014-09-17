@@ -76,7 +76,7 @@ AccessList blacklist = AccessList([
     // play store - can be used to install un-blacklisted apps or uninstall apps
     "com.android.vending" -> {"*"},
 
-    "com.estrongs.android.pop" -> {"*"}, // ES file manager
+    "com.estrongs.android.pop" -> {"*"} // ES file manager
 ]);
 
 AccessList miscblacklist = AccessList([
@@ -318,7 +318,6 @@ object phases satisfies Day {
         return today.nextChange;
     }
     shared actual Phase current {
-        Log.d(logtag, "Current phase: ``today``.``today.current``");
         return today.current;
     }
 }
@@ -374,10 +373,6 @@ PendingIntent _broadcast<Receiver>(Context c)
 void setAlarms(Context c) {
     value currentphase = phases.current;
     value pollintent = _broadcast<PollingAlarmReceiver>(c);
-    Log.d(logtag, "Setting polling:
-                   ``pollintent``
-                   ``currentphase``
-                   ``currentphase.poll``");
     if (currentphase.poll) {
         // would be nice to make this not exact, but the deltas can be too long
         // no wake, though, probably nbd
@@ -391,10 +386,6 @@ void setAlarms(Context c) {
     value intent = _broadcast<ComeAliveReceiver>(c);
     value nc = phases.nextChange;
     value next = nextInstanceOfTime(nc);
-    Log.d(logtag, "Setting next come alive:
-                   ``intent``
-                   ``nc``
-                   ``next``");
     alarmManager(c).setExact(AlarmManager.\iRTC,
             next.millisecondsOfEpoch, intent);
 }
@@ -415,15 +406,7 @@ shared class PollingAlarmReceiver() extends BroadcastReceiver() {
         value taskInfo = activityManager(context).getRunningTasks(1); 
         value task = taskInfo.get(0);
 
-        value blacklisted = task.topActivity in blacklist then "blacklisted" else "not blacklisted";
-        value whitelisted = task.topActivity in whitelist then "whitelisted" else "not whitelisted";
-
         value phase = phases.current;
-        Log.d(logtag, "Polling event:
-                       phase: ``phase``
-                       enforce: ``phase.enforce``
-                       activity: ``task.topActivity.flattenToString()``
-                       allowed: ``phase.allowed(task.topActivity)``");
 
         if (phase.enforce && !phase.allowed(task.topActivity)) {
             Log.d(logtag, "CURRENT PHASE DOES NOT ALLOW ACTIVITY ``task.topActivity.flattenToString()``");
