@@ -141,6 +141,7 @@ AccessList whitelist = AccessList([
     "com.android.systemui" -> {"com.android.systemui.recent.RecentsActivity"},
     "com.teslacoilsw.launcher" -> {"*"},
     "com.google.android.dialer" -> {"*"},
+    "com.google.android.apps.maps" -> {"*"},
 
     // includes emergency dialer
     "com.android.phone" -> {"*"},
