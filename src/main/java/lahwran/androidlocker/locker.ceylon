@@ -146,11 +146,16 @@ AccessList whitelist = AccessList([
     // includes emergency dialer
     "com.android.phone" -> {"*"},
 
+    "com.google.android.gm" -> {"*"},
     "com.google.android.apps.googlevoice" -> {"*"},
     "com.google.android.GoogleCamera" -> {"*"},
-    "info.staticfree.SuperGenPass" -> {"*"}
+    "info.staticfree.SuperGenPass" -> {"*"},
+    "lahwran.androidlocker" -> {"*"}
 ]);
 
+void toast(Context context, String message) {
+    Toast.makeText(context, JavaString(message), Toast.\iLENGTH_SHORT).show();
+}
 
 AlarmManager alarmManager(Context c) {
     assert(is AlarmManager
@@ -213,7 +218,7 @@ object phases satisfies Day {
             } else if (n >= pretrigger.start) {
                 return evening.start;
             } else if (n >= day.start) {
-                return evening.start;
+                return pretrigger.start;
             } else {
                 return day.start;
             }
@@ -272,7 +277,7 @@ object phases satisfies Day {
         }
     }
     shared object weekend extends SequenceDay() {
-        string => "weekday";
+        string => "weekend";
         // don't you think it's cheating to just copy and paste it?
         shared actual object morning extends Phase() {
             string => "morning";
@@ -323,6 +328,13 @@ object phases satisfies Day {
     }
 }
 
+variable Boolean doLogging = false;
+variable Integer lastPoll = 0;
+
+Boolean logging {
+    return doLogging && (lastPoll % 3 == 0);
+}
+
 shared class MainActivity() extends Activity() {
     shared actual void onCreate(Bundle? savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -338,12 +350,23 @@ shared class MainActivity() extends Activity() {
 
     shared void enableAlarm(View view) {
         setAlarms(this);
+        toast(this, "Enabled");
     }
 
     shared void disableAlarm(View view) {
         if (!phases.current.enforce) {
             removeAlarms(this);
+        } else {
+            toast(this, "No");
         }
+    }
+
+    shared void enableLogging(View view) {
+        doLogging = true;
+    }
+
+    shared void disableLogging(View view) {
+        doLogging = false;
     }
 
 }
@@ -404,17 +427,27 @@ void removeAlarms(Context c) {
 
 shared class PollingAlarmReceiver() extends BroadcastReceiver() {
     shared actual void onReceive(Context context, Intent alarmintent) {
-        value taskInfo = activityManager(context).getRunningTasks(1); 
-        value task = taskInfo.get(0);
+        lastPoll += 1;
+        try {
+            value taskInfo = activityManager(context).getRunningTasks(1); 
+            value task = taskInfo.get(0);
 
-        value phase = phases.current;
+            value phase = phases.current;
 
-        if (phase.enforce && !phase.allowed(task.topActivity)) {
-            Log.d(logtag, "CURRENT PHASE DOES NOT ALLOW ACTIVITY ``task.topActivity.flattenToString()``");
-            value intent = getLauncherIntent(context);
-            intent.addFlags(Intent.\iFLAG_ACTIVITY_NEW_TASK);
-            intent.addFlags(Intent.\iFLAG_ACTIVITY_REORDER_TO_FRONT);
-            context.startActivity(intent);
+            if (phase.enforce && !phase.allowed(task.topActivity)) {
+                toast(context, "Phase does not allow ``task.topActivity.flattenToString()``");
+                value intent = getLauncherIntent(context);
+                intent.addFlags(Intent.\iFLAG_ACTIVITY_NEW_TASK);
+                intent.addFlags(Intent.\iFLAG_ACTIVITY_REORDER_TO_FRONT);
+                context.startActivity(intent);
+            } else if (logging) {
+                toast(context, "Current activity: ``task.topActivity.flattenToString()``");
+            }
+        } catch (Exception e) {
+            Log.e(logtag, "error", e);
+            if (doLogging) {
+                toast(context, "Something blew up, see console");
+            }
         }
         setAlarms(context);
     }
@@ -429,15 +462,15 @@ shared class ComeAliveReceiver() extends BroadcastReceiver() {
 
 shared class AdminReceiver() extends DeviceAdminReceiver() {
     shared actual void onEnabled(Context context, Intent intent) {
-        Toast.makeText(context, JavaString("enabled 1"), Toast.\iLENGTH_SHORT).show();
+        toast(context, "enabled 1");
     }
 
     shared actual JavaString onDisableRequested(Context context, Intent intent) {
-        Toast.makeText(context, JavaString("disable request 1"), Toast.\iLENGTH_SHORT).show();
+        toast(context, "disable request 1");
         return JavaString("derp derp");
     }
 
     shared actual void onDisabled(Context context, Intent intent) {
-        Toast.makeText(context, JavaString("disable 1"), Toast.\iLENGTH_SHORT).show();
+        toast(context, "disable 1");
     }
 }

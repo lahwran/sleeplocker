@@ -12,12 +12,22 @@
 <Button android:layout_height="wrap_content"
         android:layout_width="wrap_content"
         android:onClick="enableAlarm"
-        android:text="enable log thing"
+        android:text="enable alarms"
 />
 <Button android:layout_height="wrap_content"
         android:layout_width="wrap_content"
         android:onClick="disableAlarm"
-        android:text="disable log thing"
+        android:text="disable alarms"
+/>
+<Button android:layout_height="wrap_content"
+        android:layout_width="wrap_content"
+        android:onClick="enableLogging"
+        android:text="enable log"
+/>
+<Button android:layout_height="wrap_content"
+        android:layout_width="wrap_content"
+        android:onClick="disableLogging"
+        android:text="disable log"
 />
         
 </LinearLayout>
