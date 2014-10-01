@@ -206,6 +206,7 @@ object phases satisfies Day {
         shared formal Phase pretrigger;
         shared formal Phase evening;
         shared formal Phase night;
+        shared formal Phase postwake;
         shared formal Phase morning;
 
         shared actual Time nextChange {
@@ -219,8 +220,10 @@ object phases satisfies Day {
                 return evening.start;
             } else if (n >= day.start) {
                 return pretrigger.start;
-            } else {
+            } else if (n >= postwake.start) {
                 return day.start;
+            } else {
+                return postwake.start;
             }
         }
 
@@ -236,6 +239,8 @@ object phases satisfies Day {
                 return pretrigger;
             } else if (n >= day.start) {
                 return day;
+            } else if (n >= postwake.start) {
+                return postwake;
             } else {
                 return morning;
             }
@@ -250,12 +255,19 @@ object phases satisfies Day {
                 (activity in whitelist || activity in morningwhitelist);
             start = time(0, 0);
         }
+        shared actual object postwake extends Phase() {
+            string => "evening";
+            allowed(ComponentName activity) =>
+                !(activity in blacklist
+                  || activity in miscblacklist);
+            start = time(7, 30);
+        }
         shared actual object day extends Phase() {
             string => "day";
             poll = false;
             enforce = false;
             allowed(ComponentName activity) => true;
-            start = time(8, 30);
+            start = time(10, 00);
         }
         shared actual object pretrigger extends Phase() {
             string => "pretrigger";
@@ -290,8 +302,9 @@ object phases satisfies Day {
             poll = false;
             enforce = false;
             allowed(ComponentName activity) => true;
-            start = time(10, 30);
+            start = time(7, 00);
         }
+        postwake = day;
         shared actual object pretrigger extends Phase() {
             string => "pretrigger";
             enforce = false;
