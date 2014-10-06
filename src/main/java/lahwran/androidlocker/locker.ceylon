@@ -173,6 +173,10 @@ ActivityManager activityManager(Context c) {
     return service;
 }
 
+Intent getSleepIntent(Context c) {
+    return c.packageManager.getLaunchIntentForPackage("com.azumio.android.sleeptime");
+}
+
 Intent getLauncherIntent(Context c) {
     value activities = c.packageManager.queryIntentActivities(
             Intent(Intent.\iACTION_MAIN)
@@ -193,6 +197,7 @@ abstract class Phase() {
     shared default Boolean enforce = true;
     shared formal Boolean allowed(ComponentName activity);
     shared formal Time start;
+    shared default Intent(Context) getEnforceIntent = getSleepIntent;
 }
 interface Day {
     shared formal Time nextChange;
@@ -261,13 +266,14 @@ object phases satisfies Day {
                 !(activity in blacklist
                   || activity in miscblacklist);
             start = time(7, 30);
+            getEnforceIntent = getLauncherIntent;
         }
         shared actual object day extends Phase() {
             string => "day";
             poll = false;
             enforce = false;
             allowed(ComponentName activity) => true;
-            start = time(10, 00);
+            start = time(9, 00);
         }
         shared actual object pretrigger extends Phase() {
             string => "pretrigger";
@@ -277,10 +283,9 @@ object phases satisfies Day {
         }
         shared actual object evening extends Phase() {
             string => "evening";
-            allowed(ComponentName activity) =>
-                !(activity in blacklist
-                  || activity in miscblacklist);
+            allowed(ComponentName activity) => !(activity in blacklist);
             start = time(12 + 5, 10);
+            getEnforceIntent = getLauncherIntent;
         }
         shared actual object night extends Phase() {
             string => "night";
@@ -296,6 +301,7 @@ object phases satisfies Day {
             allowed(ComponentName activity) => 
                 (activity in whitelist || activity in morningwhitelist);
             start = time(0, 0);
+            getEnforceIntent = getLauncherIntent;
         }
         shared actual object day extends Phase() {
             string => "day";
@@ -315,6 +321,7 @@ object phases satisfies Day {
             string => "evening";
             allowed(ComponentName activity) => !(activity in blacklist);
             start = time(12 + 6, 10);
+            getEnforceIntent = getLauncherIntent;
         }
         shared actual object night extends Phase() {
             string => "night";
@@ -449,7 +456,7 @@ shared class PollingAlarmReceiver() extends BroadcastReceiver() {
 
             if (phase.enforce && !phase.allowed(task.topActivity)) {
                 toast(context, "Phase does not allow ``task.topActivity.flattenToString()``");
-                value intent = getLauncherIntent(context);
+                value intent = phase.getEnforceIntent(context);
                 intent.addFlags(Intent.\iFLAG_ACTIVITY_NEW_TASK);
                 intent.addFlags(Intent.\iFLAG_ACTIVITY_REORDER_TO_FRONT);
                 context.startActivity(intent);
