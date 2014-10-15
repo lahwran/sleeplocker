@@ -11,6 +11,8 @@ import ceylon.interop.java { javaClass }
 
 import ceylon.collection { HashMap }
 import ceylon.time {
+    // TODO: replace now(), today() with ntp-and-offset-based internal clock
+    // to allow settings to be used again
     now, today, time,
     Time, Period, Instant
 }
@@ -55,16 +57,20 @@ AccessList blacklist = AccessList([
     // anything related to uninstalling
     "com.android.packageinstaller" -> {"*"},
 
-    "com.android.settings" -> [
-        // Can be used to uninstall or kill apps
-        "com.android.settings.Settings$ManageApplicationsActivity",
-        // Same as above
-        "com.android.settings.applications.InstalledAppDetails",
-        // Can be used to disable screen lock
-        "com.android.settings.ConfirmLockPassword",
-        // Can be used to disable device admins
-        "com.android.settings.DeviceAdminAdd"
-    ],
+    // Can be used to change the time
+    "com.android.settings" -> {
+        "*"
+        // TODO: need custom time system in order for this to be safe!
+        //
+        // // Can be used to uninstall or kill apps
+        // "com.android.settings.Settings$ManageApplicationsActivity",
+        // // Same as above
+        // "com.android.settings.applications.InstalledAppDetails",
+        // // Can be used to disable screen lock
+        // "com.android.settings.ConfirmLockPassword",
+        // // Can be used to disable device admins
+        // "com.android.settings.DeviceAdminAdd"
+    },
 
     // root manager - anything, this also disallows all root requests
     "eu.chainfire.supersu" -> {"*"},
@@ -76,7 +82,9 @@ AccessList blacklist = AccessList([
     // play store - can be used to install un-blacklisted apps or uninstall apps
     "com.android.vending" -> {"*"},
 
-    "com.estrongs.android.pop" -> {"*"} // ES file manager
+    "com.estrongs.android.pop" -> {"*"}, // ES file manager
+
+    "ru.org.amip.ClockSync" -> {"*"}
 ]);
 
 AccessList miscblacklist = AccessList([
@@ -85,6 +93,7 @@ AccessList miscblacklist = AccessList([
     // mostly stuff I use for reddit/tumblr/etc.
 
     
+    "com.google.android.youtube" -> {"*"},
     "com.tumblr" -> {"*"},
     "com.deeptrouble.yaarreddit" -> {"*"},
     "org.mozilla.firefox" -> {"*"},
@@ -383,10 +392,12 @@ shared class MainActivity() extends Activity() {
 
     shared void enableLogging(View view) {
         doLogging = true;
+        setAlarms(this);
     }
 
     shared void disableLogging(View view) {
         doLogging = false;
+        setAlarms(this);
     }
 
 }
@@ -417,7 +428,7 @@ PendingIntent _broadcast<Receiver>(Context c)
 void setAlarms(Context c) {
     value currentphase = phases.current;
     value pollintent = _broadcast<PollingAlarmReceiver>(c);
-    if (currentphase.poll) {
+    if (currentphase.poll || doLogging) {
         // would be nice to make this not exact, but the deltas can be too long
         // no wake, though, probably nbd
         alarmManager(c).set(AlarmManager.\iELAPSED_REALTIME,
