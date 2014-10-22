@@ -102,7 +102,16 @@ AccessList miscblacklist = AccessList([
     // misc:
     "com.google.android.googlequicksearchbox" -> {"*"},
     "com.rhmsoft.fm" -> {"*"}, // some random file manager
-    "com.metago.astro" -> {"*"} // astro file manager
+    "com.metago.astro" -> {"*"}, // astro file manager
+    "ru.zdevs.zarchiver" -> {"*"},
+    "com.spacemonkey.syncapp" -> {
+        "com.spacemonkey.syncapp.myfiles.UploadFileActivity"
+    },
+    "com.google.android.apps.plus" -> {
+        "com.google.android.apps.plus.phone.VideoViewActivity",
+        "com.google.android.apps.plus.phone.HostPhotoViewIntentActivity",
+    },
+    "com.google.android.gallery3d" -> {"*"}
 ]);
 
 AccessList morningwhitelist = AccessList([
