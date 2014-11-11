@@ -109,7 +109,11 @@ AccessList miscblacklist = AccessList([
     },
     "com.google.android.apps.plus" -> {
         "com.google.android.apps.plus.phone.VideoViewActivity",
-        "com.google.android.apps.plus.phone.HostPhotoViewIntentActivity",
+        "com.google.android.apps.plus.phone.HostPhotoViewIntentActivity"
+    },
+    "com.pearlmoon.android.media.AstiMediaPlayer" -> {"*"},
+    "org.videolan.vlc.betav7neon" -> {
+        "org.videolan.vlc.betav7neon.gui.video.VideoPlayerActivity"
     },
     "com.google.android.gallery3d" -> {"*"}
 ]);
@@ -127,6 +131,7 @@ AccessList whitelist = AccessList([
 
     // weather (and news, but w/e, I don't even want to read that)
     "com.google.android.apps.genie.geniewidget" -> {"*"},
+    "com.nestlabs.android" -> {"*"},
 
     "com.mictale.gpsessentials" -> {"*"},
     "com.eclipsim.gpsstatus2" -> {"*"},
@@ -173,6 +178,7 @@ AccessList whitelist = AccessList([
 
 void toast(Context context, String message) {
     Toast.makeText(context, JavaString(message), Toast.\iLENGTH_SHORT).show();
+    Log.v(logtag, "Toast message: ``message``");
 }
 
 AlarmManager alarmManager(Context c) {
@@ -283,7 +289,7 @@ object phases satisfies Day {
             allowed(ComponentName activity) =>
                 !(activity in blacklist
                   || activity in miscblacklist);
-            start = time(7, 30);
+            start = time(5, 30);
             getEnforceIntent = getLauncherIntent;
         }
         shared actual object day extends Phase() {
