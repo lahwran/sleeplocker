@@ -35,7 +35,7 @@ def ceylonModuleVersion = "1"  // TODO: this should be autodetected :(
 
 
 android.applicationVariants.all {
-    def ceylonExecutable = "/Users/lahwran/ceylonstuff/ceylon-dist/dist/bin/ceylon"
+    def ceylonExecutable = "ceylon"
     def ceylonVersion = "1.1.0"
 
     def pfx = "ceylon-${name}-"
